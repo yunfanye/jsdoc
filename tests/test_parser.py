@@ -5,8 +5,8 @@ This module contains tests for all supported JSDoc tags and parsing functionalit
 """
 
 import pytest
-from jsdoc_parser import parse
-from jsdoc_parser.models import JSDocComment, Parameter, ReturnValue, TypeDef, Property, Example, Throws, Description
+from jsdoc import parse
+from jsdoc.models import JSDocComment, Parameter, ReturnValue, TypeDef, Property, Example, Throws, Description
 
 
 def test_basic_function_comment():
@@ -408,3 +408,175 @@ def test_description_only_format():
     
     # Test raw comment preservation
     assert result.raw_comment == jsdoc
+
+
+def test_typedef_and_function_comment_blocks():
+    """Test parsing input with two comment blocks: typedef block followed by function JSDoc."""
+    jsdoc_with_two_blocks = """/**
+     * @typedef {object} UserProfile
+     * @property {string} id - The unique user identifier
+     * @property {string} name - The user's full name
+     * @property {string|null} email - The user's email address
+     * @property {number} age - The user's age in years
+     * @property {boolean} isActive - Whether the user account is active
+     */
+
+    /**
+     * Creates a new user profile with validation.
+     * 
+     * This function validates user input and creates a properly structured
+     * user profile object that conforms to the UserProfile typedef.
+     *
+     * @param {string} name - The user's full name
+     * @param {string} email - The user's email address
+     * @param {number} age - The user's age in years
+     * @returns {UserProfile} A validated user profile object
+     * @throws {ValidationError} If the input data is invalid
+     * 
+     * @example
+     * // Create a new user profile
+     * const profile = createUserProfile('John Doe', 'john.doe.email.com', 30);
+     * console.log(profile.id); // Generated UUID
+     */
+    function createUserProfile(name, email, age) {
+        if (!name || typeof name !== 'string') {
+            throw new ValidationError('Name must be a non-empty string');
+        }
+        
+        const profile = {
+            id: generateUUID(),
+            name: name.trim(),
+            email: email || null,
+            age: age,
+            isActive: true
+        };
+        
+        return profile;
+    }"""
+    
+    # Parse the first comment block (typedef)
+    typedef_result = parse(jsdoc_with_two_blocks)
+    
+    # Test typedef parsing
+    assert typedef_result.typedef is not None
+    assert typedef_result.typedef.name == "UserProfile"
+    assert typedef_result.typedef.types == ["object"]
+    
+    # Test typedef properties
+    assert len(typedef_result.properties) == 5
+    
+    # Test specific properties
+    id_prop = typedef_result.properties[0]
+    assert id_prop.name == "id"
+    assert id_prop.types == ["string"]
+    assert id_prop.description == "The unique user identifier"
+    assert not id_prop.optional
+    
+    email_prop = typedef_result.properties[2]
+    assert email_prop.name == "email"
+    assert email_prop.types == ["string", "null"]
+    assert email_prop.description == "The user's email address"
+    
+    isActive_prop = typedef_result.properties[4]
+    assert isActive_prop.name == "isActive"
+    assert isActive_prop.types == ["boolean"]
+    assert isActive_prop.description == "Whether the user account is active"
+    
+    # Since the parser currently processes only the first comment block,
+    # we need to test the function comment separately
+    function_jsdoc = """/**
+     * Creates a new user profile with validation.
+     * 
+     * This function validates user input and creates a properly structured
+     * user profile object that conforms to the UserProfile typedef.
+     *
+     * @param {string} name - The user's full name
+     * @param {string} email - The user's email address
+     * @param {number} age - The user's age in years
+     * @returns {UserProfile} A validated user profile object
+     * @throws {ValidationError} If the input data is invalid
+     * 
+     * @example
+     * // Create a new user profile
+     * const profile = createUserProfile('John Doe', 'john.doe.email.com', 30);
+     * console.log(profile.id); // Generated UUID
+     */
+    function createUserProfile(name, email, age) {
+        if (!name || typeof name !== 'string') {
+            throw new ValidationError('Name must be a non-empty string');
+        }
+        
+        const profile = {
+            id: generateUUID(),
+            name: name.trim(),
+            email: email || null,
+            age: age,
+            isActive: true
+        };
+        
+        return profile;
+    }"""
+    
+    function_result = parse(function_jsdoc)
+    
+    # Test function description
+    assert function_result.description is not None
+    assert function_result.description.summary == "Creates a new user profile with validation."
+    expected_full = ("Creates a new user profile with validation.\n\n"
+                    "This function validates user input and creates a properly structured\n"
+                    "user profile object that conforms to the UserProfile typedef.")
+    assert function_result.description.full == expected_full
+    
+    # Test function parameters
+    assert len(function_result.params) == 3
+    
+    name_param = function_result.params[0]
+    assert name_param.name == "name"
+    assert name_param.types == ["string"]
+    assert name_param.description == "The user's full name"
+    assert not name_param.optional
+    
+    email_param = function_result.params[1]
+    assert email_param.name == "email"
+    assert email_param.types == ["string"]
+    assert email_param.description == "The user's email address"
+    
+    age_param = function_result.params[2]
+    assert age_param.name == "age"
+    assert age_param.types == ["number"]
+    assert age_param.description == "The user's age in years"
+    
+    # Test return value
+    assert len(function_result.returns) == 1
+    assert function_result.returns[0].types == ["UserProfile"]
+    assert function_result.returns[0].description == "A validated user profile object"
+    
+    # Test throws
+    assert len(function_result.throws) == 1
+    assert function_result.throws[0].types == ["ValidationError"]
+    assert function_result.throws[0].description == "If the input data is invalid"
+    
+    # Test example
+    assert len(function_result.examples) == 1
+    example = function_result.examples[0]
+    assert "Create a new user profile" in example.code
+    assert "createUserProfile('John Doe', 'john.doe.email.com', 30)" in example.code
+    assert "console.log(profile.id)" in example.code
+    
+    # Test code extraction - this is crucial for verifying "code" is properly parsed
+    assert function_result.code is not None
+    assert "function createUserProfile(name, email, age)" in function_result.code
+    assert "if (!name || typeof name !== 'string')" in function_result.code
+    assert "throw new ValidationError" in function_result.code
+    assert "generateUUID()" in function_result.code
+    assert "return profile;" in function_result.code
+    
+    # Verify the function code contains the complete implementation
+    lines_in_code = function_result.code.split('\n')
+    assert len(lines_in_code) > 10  # Should have multiple lines of actual function code
+    
+    # Test that no function-specific elements are in typedef result
+    assert len(typedef_result.params) == 0
+    assert len(typedef_result.returns) == 0
+    assert len(typedef_result.throws) == 0
+    assert len(typedef_result.examples) == 0

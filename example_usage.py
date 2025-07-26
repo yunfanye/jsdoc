@@ -5,7 +5,7 @@ Example usage of the JSDoc Parser package.
 This script demonstrates all the supported JSDoc tags and features.
 """
 
-from jsdoc_parser import parse
+from jsdoc import parse
 import json
 
 def main():

@@ -44,7 +44,7 @@ Repository = "https://github.com/yunfanye/jsdoc.git"
 "Bug Tracker" = "https://github.com/yunfanye/jsdoc/issues"
 
 [tool.setuptools]
-packages = ["jsdoc_parser"]
+packages = ["jsdoc"]
 
 [tool.black]
 line-length = 88

@@ -98,7 +98,7 @@ password = pypi-your-test-api-token-here
 pip install jsdoc
 
 # Test it works
-python -c "from jsdoc_parser import parse; print('Success!')"
+python -c "from jsdoc import parse; print('Success!')"
 ```
 
 ### Update Package (Future Versions)
@@ -128,7 +128,7 @@ Your package is production-ready with:
 
 Once published, users will be able to:
 ```python
-from jsdoc_parser import parse
+from jsdoc import parse
 
 result = parse(jsdoc_string)
 print(result.params[0].name)    # Access parameter names

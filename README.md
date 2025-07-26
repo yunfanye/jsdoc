@@ -20,7 +20,7 @@ pip install jsdoc
 ## Quick Start
 
 ```python
-from jsdoc_parser import parse
+from jsdoc import parse
 
 # Parse a JSDoc comment
 jsdoc_string = '''/**
