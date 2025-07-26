@@ -6,7 +6,6 @@ This module contains tests for all supported JSDoc tags and parsing functionalit
 
 import pytest
 from jsdoc import parse
-from jsdoc.models import JSDocComment, Parameter, ReturnValue, TypeDef, Property, Example, Throws, Description
 
 
 def test_basic_function_comment():
@@ -60,9 +59,9 @@ def test_typedef_with_properties():
     
     result = parse(jsdoc, include_code=False)
     
-    assert result.typedef is not None
-    assert result.typedef.name == "RealEstateListing"
-    assert result.typedef.types == ["object"]
+    assert len(result.typedefs) == 1
+    assert result.typedefs[0].name == "RealEstateListing"
+    assert result.typedefs[0].types == ["object"]
     
     assert len(result.properties) == 8
     
@@ -400,7 +399,7 @@ def test_description_only_format():
     assert len(result.throws) == 0
     assert len(result.examples) == 0
     assert len(result.properties) == 0
-    assert result.typedef is None
+    assert len(result.typedefs) == 0
     
     # Test code extraction
     assert result.code is not None
@@ -458,26 +457,26 @@ def test_typedef_and_function_comment_blocks():
     typedef_result = parse(jsdoc_with_two_blocks)
     
     # Test typedef parsing
-    assert typedef_result.typedef is not None
-    assert typedef_result.typedef.name == "UserProfile"
-    assert typedef_result.typedef.types == ["object"]
+    assert len(typedef_result.typedefs) == 1
+    assert typedef_result.typedefs[0].name == "UserProfile"
+    assert typedef_result.typedefs[0].types == ["object"]
     
-    # Test typedef properties
-    assert len(typedef_result.properties) == 5
+    # Test typedef properties (properties are now in the typedef itself, not in the main properties list)  
+    assert len(typedef_result.typedefs[0].properties) == 5
     
-    # Test specific properties
-    id_prop = typedef_result.properties[0]
+    # Test specific properties from the typedef
+    id_prop = typedef_result.typedefs[0].properties[0]
     assert id_prop.name == "id"
     assert id_prop.types == ["string"]
     assert id_prop.description == "The unique user identifier"
     assert not id_prop.optional
     
-    email_prop = typedef_result.properties[2]
+    email_prop = typedef_result.typedefs[0].properties[2]
     assert email_prop.name == "email"
     assert email_prop.types == ["string", "null"]
     assert email_prop.description == "The user's email address"
     
-    isActive_prop = typedef_result.properties[4]
+    isActive_prop = typedef_result.typedefs[0].properties[4]
     assert isActive_prop.name == "isActive"
     assert isActive_prop.types == ["boolean"]
     assert isActive_prop.description == "Whether the user account is active"
@@ -575,8 +574,196 @@ def test_typedef_and_function_comment_blocks():
     lines_in_code = function_result.code.split('\n')
     assert len(lines_in_code) > 10  # Should have multiple lines of actual function code
     
-    # Test that no function-specific elements are in typedef result
-    assert len(typedef_result.params) == 0
-    assert len(typedef_result.returns) == 0
-    assert len(typedef_result.throws) == 0
-    assert len(typedef_result.examples) == 0
+    # With the new parser logic, the result now includes function documentation
+    # from the richest comment block AND typedefs from all blocks
+    assert len(typedef_result.params) == 3  # Function parameters from second block
+    assert len(typedef_result.returns) == 1  # Function return from second block  
+    assert len(typedef_result.throws) == 1   # Function throws from second block
+    assert len(typedef_result.examples) == 1 # Function examples from second block
+
+
+def test_multiple_typedefs_single_block():
+    """Test parsing multiple typedef definitions in a single comment block."""
+    jsdoc = """/**
+     * @typedef {object} User
+     * @property {string} id - User identifier
+     * @property {string} name - User name
+     * 
+     * @typedef {object} Role
+     * @property {string} name - Role name
+     * @property {string[]} permissions - Role permissions
+     * 
+     * @typedef {string} Status - User status (active, inactive, pending)
+     */"""
+    
+    result = parse(jsdoc, include_code=False)
+    
+    # Test that we have 3 typedefs
+    assert len(result.typedefs) == 3
+    
+    # Test first typedef (User)
+    user_typedef = result.typedefs[0]
+    assert user_typedef.name == "User"
+    assert user_typedef.types == ["object"]
+    assert user_typedef.description is None
+    
+    # Test second typedef (Role)
+    role_typedef = result.typedefs[1]
+    assert role_typedef.name == "Role"
+    assert role_typedef.types == ["object"]
+    assert role_typedef.description is None
+    
+    # Test third typedef (Status)
+    status_typedef = result.typedefs[2]
+    assert status_typedef.name == "Status"
+    assert status_typedef.types == ["string"]
+    assert status_typedef.description == "User status (active, inactive, pending)"
+    
+    # Test properties - currently all properties are associated with all typedefs when multiple exist
+    # This could be improved in future to associate properties with their specific typedef
+    assert len(result.properties) == 4  # 2 from User + 2 from Role
+
+
+def test_multiple_typedefs_separate_blocks():
+    """Test parsing multiple typedef definitions in separate comment blocks."""
+    jsdoc_multiple_blocks = """/**
+     * @typedef {object} Product
+     * @property {string} id - Product identifier
+     * @property {string} name - Product name
+     * @property {number} price - Product price
+     */
+
+    /**
+     * @typedef {object} Category
+     * @property {string} id - Category identifier  
+     * @property {string} name - Category name
+     * @property {Product[]} products - Products in this category
+     */
+
+    /**
+     * @typedef {object} Store
+     * @property {string} name - Store name
+     * @property {Category[]} categories - Store categories
+     */
+
+    function getStore() {
+        return storeData;
+    }"""
+    
+    result = parse(jsdoc_multiple_blocks)
+    
+    # Test that we have 3 typedefs from separate blocks
+    assert len(result.typedefs) == 3
+    
+    # Test first typedef (Product)
+    product_typedef = result.typedefs[0]
+    assert product_typedef.name == "Product"
+    assert product_typedef.types == ["object"]
+    assert len(product_typedef.properties) == 3
+    assert product_typedef.properties[0].name == "id"
+    assert product_typedef.properties[1].name == "name"
+    assert product_typedef.properties[2].name == "price"
+    
+    # Test second typedef (Category)
+    category_typedef = result.typedefs[1]
+    assert category_typedef.name == "Category"
+    assert category_typedef.types == ["object"]
+    assert len(category_typedef.properties) == 3
+    assert category_typedef.properties[0].name == "id"
+    assert category_typedef.properties[1].name == "name"
+    assert category_typedef.properties[2].name == "products"
+    assert category_typedef.properties[2].types == ["Product[]"]
+    
+    # Test third typedef (Store)
+    store_typedef = result.typedefs[2]
+    assert store_typedef.name == "Store"
+    assert store_typedef.types == ["object"]
+    assert len(store_typedef.properties) == 2
+    assert store_typedef.properties[0].name == "name"
+    assert store_typedef.properties[1].name == "categories"
+    assert store_typedef.properties[1].types == ["Category[]"]
+    
+    # Test that code is properly extracted after all typedef blocks
+    assert result.code is not None
+    assert "function getStore()" in result.code
+    assert "return storeData;" in result.code
+    
+    # Test that main comment block (first one) doesn't have other JSDoc elements
+    assert result.description is None
+    assert len(result.params) == 0
+    assert len(result.returns) == 0
+
+
+def test_mixed_typedef_and_function_documentation():
+    """Test parsing typedefs mixed with function documentation."""
+    jsdoc_mixed = """/**
+     * @typedef {object} Config
+     * @property {string} apiUrl - API base URL
+     * @property {boolean} debug - Debug mode flag
+     */
+
+    /**
+     * Initializes the application with given configuration.
+     * 
+     * This function sets up the application using the provided configuration
+     * object and returns a promise that resolves when initialization is complete.
+     *
+     * @param {Config} config - Configuration object
+     * @param {object} [options] - Optional settings
+     * @returns {Promise<void>} Promise that resolves when initialized
+     * @throws {ConfigError} If configuration is invalid
+     * 
+     * @example
+     * // Initialize with configuration
+     * await initializeApp({
+     *   apiUrl: 'https://api.example.com',
+     *   debug: false
+     * });
+     */
+    async function initializeApp(config, options = {}) {
+        validateConfig(config);
+        await setupDatabase(config);
+        await loadPlugins(options);
+    }"""
+    
+    result = parse(jsdoc_mixed)
+    
+    # Test typedef from first block
+    assert len(result.typedefs) == 1
+    config_typedef = result.typedefs[0]
+    assert config_typedef.name == "Config"
+    assert config_typedef.types == ["object"]
+    assert len(config_typedef.properties) == 2
+    assert config_typedef.properties[0].name == "apiUrl"
+    assert config_typedef.properties[1].name == "debug"
+    
+    # Test function documentation from second block (first block content)
+    assert result.description is not None
+    assert result.description.summary == "Initializes the application with given configuration."
+    assert "This function sets up the application" in result.description.full
+    
+    # Test function parameters
+    assert len(result.params) == 2
+    assert result.params[0].name == "config"
+    assert result.params[0].types == ["Config"]
+    assert result.params[1].name == "options"
+    assert result.params[1].optional
+    
+    # Test function return
+    assert len(result.returns) == 1
+    assert result.returns[0].types == ["Promise<void>"]
+    
+    # Test function throws
+    assert len(result.throws) == 1
+    assert result.throws[0].types == ["ConfigError"]
+    
+    # Test function example
+    assert len(result.examples) == 1
+    assert "Initialize with configuration" in result.examples[0].code
+    assert "initializeApp({" in result.examples[0].code
+    
+    # Test code extraction
+    assert result.code is not None
+    assert "async function initializeApp" in result.code
+    assert "validateConfig(config)" in result.code
+    assert "await setupDatabase(config)" in result.code

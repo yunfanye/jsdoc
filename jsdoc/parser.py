@@ -7,7 +7,7 @@ JSDoc tags and their associated content.
 """
 
 import re
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from .models import (
     JSDocComment,
     Parameter,
@@ -32,7 +32,7 @@ class JSDocParser:
     COMMENT_BLOCK_PATTERN = re.compile(r'/\*\*(.*?)\*/', re.DOTALL)
     PARAM_PATTERN = re.compile(r'@param\s+\{([^}]+)\}\s+(\[?([^[\]\s-]+(?:=[^[\]]*)?)\]?)\s*-?\s*(.*)', re.MULTILINE)
     RETURN_PATTERN = re.compile(r'@returns?\s+\{([^}]+)\}\s*-?\s*(.*)', re.MULTILINE)
-    TYPEDEF_PATTERN = re.compile(r'@typedef\s+\{([^}]+)\}\s+([^\s]+)(?:\s*-?\s*(.*))?', re.MULTILINE)
+    TYPEDEF_PATTERN = re.compile(r'@typedef\s+\{([^}]+)\}\s+([^\s]+)(?:\s*-?\s*([^@]*))?', re.MULTILINE)
     PROPERTY_PATTERN = re.compile(r'@property\s+\{([^}]+)\}\s+(\[?([^[\]\s-]+(?:=[^[\]]*)?)\]?)\s*-?\s*(.*)', re.MULTILINE)
     EXAMPLE_PATTERN = re.compile(r'@example\s*\n?(.*?)(?=@\w+|\*/|$)', re.DOTALL | re.MULTILINE)
     THROWS_PATTERN = re.compile(r'@throws\s+\{([^}]+)\}\s*-?\s*(.*)', re.MULTILINE)
@@ -208,29 +208,40 @@ class JSDocParser:
         return properties
     
     @classmethod
-    def _parse_typedef(cls, content: str, properties: List[Property]) -> Optional[TypeDef]:
+    def _parse_typedefs(cls, content: str) -> List[TypeDef]:
         """
-        Parse @typedef tag from comment content.
+        Parse @typedef tags from comment content.
         
         Args:
             content: Comment content to parse
-            properties: List of properties for this typedef
             
         Returns:
-            TypeDef object or None if no typedef found
+            List of TypeDef objects
         """
+        typedefs = []
         matches = cls.TYPEDEF_PATTERN.findall(content)
-        if not matches:
-            return None
-            
-        type_str, name, description = matches[0]
         
-        return TypeDef(
-            types=cls._parse_types(type_str),
-            name=name,
-            description=description.strip() if description else None,
-            properties=properties
-        )
+        if not matches:
+            return typedefs
+        
+        # Parse all @property tags to associate with typedefs
+        all_properties = cls._parse_properties(content)
+        
+        # For each typedef, find associated properties
+        for type_str, name, description in matches:
+            # For now, associate all properties with each typedef
+            # TODO: In future, we could improve this to associate properties
+            # with their specific typedef based on position in the comment
+            typedef_properties = all_properties if len(matches) == 1 else []
+            
+            typedefs.append(TypeDef(
+                types=cls._parse_types(type_str),
+                name=name,
+                description=description.strip() if description else None,
+                properties=typedef_properties
+            ))
+            
+        return typedefs
     
     @classmethod
     def _parse_examples(cls, content: str) -> List[Example]:
@@ -360,43 +371,92 @@ def parse(jsdoc_string: str, include_code: bool = True) -> JSDocComment:
     if not jsdoc_string or not jsdoc_string.strip():
         raise ValueError("JSDoc string cannot be empty")
     
-    # Extract comment content and any following code
-    comment_match = JSDocParser.COMMENT_BLOCK_PATTERN.search(jsdoc_string)
+    # Find all comment blocks in the input string
+    comment_matches = list(JSDocParser.COMMENT_BLOCK_PATTERN.finditer(jsdoc_string))
     code = None
     
-    if not comment_match:
+    if not comment_matches:
         # Try to handle comments without /** */ wrapper
         if jsdoc_string.strip().startswith('*'):
             content = jsdoc_string
         else:
             raise ValueError("Invalid JSDoc comment format: must be wrapped in /** */")
     else:
-        content = comment_match.group(1)
+        # Process the first comment block for main content
+        first_match = comment_matches[0]
+        content = first_match.group(1)
         
-        # Extract code that follows the comment if include_code is True
+        # Extract code that follows the last comment if include_code is True
         if include_code:
-            comment_end_pos = comment_match.end()
-            remaining_text = jsdoc_string[comment_end_pos:].strip()
+            # Code comes after the last comment block
+            last_comment_end_pos = comment_matches[-1].end()
+            remaining_text = jsdoc_string[last_comment_end_pos:].strip()
+            
             if remaining_text:
                 code = remaining_text
     
     # Clean the content
     cleaned_content = JSDocParser._clean_comment_content(content)
     
-    # Parse all components
-    description = JSDocParser._extract_description_parts(cleaned_content)
-    params = JSDocParser._parse_parameters(cleaned_content)
-    returns = JSDocParser._parse_returns(cleaned_content)
-    properties = JSDocParser._parse_properties(cleaned_content)
-    typedef = JSDocParser._parse_typedef(cleaned_content, properties)
-    examples = JSDocParser._parse_examples(cleaned_content)
-    throws = JSDocParser._parse_throws(cleaned_content)
+    # Parse all components - find the block with the richest documentation
+    description = None
+    params = []
+    returns = []
+    properties = []
+    examples = []
+    throws = []
+    
+    if comment_matches:
+        # Find the comment block with function documentation (params, returns, etc.)
+        main_block_content = None
+        for match in comment_matches:
+            block_content = JSDocParser._clean_comment_content(match.group(1))
+            block_params = JSDocParser._parse_parameters(block_content)
+            block_returns = JSDocParser._parse_returns(block_content)
+            block_examples = JSDocParser._parse_examples(block_content)
+            block_throws = JSDocParser._parse_throws(block_content)
+            
+            # If this block has function documentation, use it as main
+            if block_params or block_returns or block_examples or block_throws:
+                main_block_content = block_content
+                params = block_params
+                returns = block_returns
+                examples = block_examples
+                throws = block_throws
+                break
+        
+        # If no block has function documentation, use the first block
+        if main_block_content is None:
+            main_block_content = cleaned_content
+        
+        # Parse description and properties from the main block
+        description = JSDocParser._extract_description_parts(main_block_content)
+        properties = JSDocParser._parse_properties(main_block_content)
+    else:
+        # Single content without /** */ wrapper
+        description = JSDocParser._extract_description_parts(cleaned_content)
+        params = JSDocParser._parse_parameters(cleaned_content)
+        returns = JSDocParser._parse_returns(cleaned_content)
+        properties = JSDocParser._parse_properties(cleaned_content)
+        examples = JSDocParser._parse_examples(cleaned_content)
+        throws = JSDocParser._parse_throws(cleaned_content)
+    
+    # Parse typedefs from all comment blocks
+    typedefs = []
+    if comment_matches:
+        for match in comment_matches:
+            block_content = JSDocParser._clean_comment_content(match.group(1))
+            block_typedefs = JSDocParser._parse_typedefs(block_content)
+            typedefs.extend(block_typedefs)
+    else:
+        # Single content without /** */ wrapper
+        typedefs = JSDocParser._parse_typedefs(cleaned_content)
     
     return JSDocComment(
         description=description,
         params=params,
         returns=returns,
-        typedef=typedef,
+        typedefs=typedefs,
         properties=properties,
         examples=examples,
         throws=throws,

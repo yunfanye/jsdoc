@@ -6,7 +6,7 @@ as structured Python objects. Each model corresponds to a specific JSDoc tag
 or component.
 """
 
-from typing import List, Optional, Union
+from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -117,7 +117,7 @@ class JSDocComment(BaseModel):
         description: The main description of the documented item
         params: List of @param tags
         returns: List of @returns/@return tags  
-        typedef: @typedef definition if present
+        typedefs: List of @typedef definitions
         properties: List of @property tags (usually within @typedef)
         examples: List of @example tags
         throws: List of @throws tags
@@ -127,7 +127,7 @@ class JSDocComment(BaseModel):
     description: Optional[Description] = Field(default=None, description="Main description")
     params: List[Parameter] = Field(default_factory=list, description="Function parameters")
     returns: List[ReturnValue] = Field(default_factory=list, description="Return values")
-    typedef: Optional[TypeDef] = Field(default=None, description="Type definition")
+    typedefs: List[TypeDef] = Field(default_factory=list, description="Type definitions")
     properties: List[Property] = Field(default_factory=list, description="Object properties")
     examples: List[Example] = Field(default_factory=list, description="Usage examples")
     throws: List[Throws] = Field(default_factory=list, description="Possible exceptions")
