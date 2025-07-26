@@ -14,7 +14,7 @@ A professional Python package for parsing JavaScript documentation comments (JSD
 ## Installation
 
 ```bash
-pip install jsdoc-parser
+pip install jsdoc
 ```
 
 ## Quick Start
@@ -204,8 +204,8 @@ except ValueError as e:
 ### Setup Development Environment
 
 ```bash
-git clone https://github.com/your-repo/jsdoc-parser
-cd jsdoc-parser
+git clone https://github.com/yunfanye/jsdoc
+cd jsdoc
 pip install -e ".[dev]"
 ```
 
