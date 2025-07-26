@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jsdoc"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python package for parsing JSDoc comment blocks into structured BaseModel objects"
 authors = [{name = "JSDoc Authors", email = "authors@jsdoc.com"}]
 license = {text = "MIT"}
