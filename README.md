@@ -5,6 +5,7 @@ A professional Python package for parsing JavaScript documentation comments (JSD
 ## Features
 
 - **Comprehensive JSDoc Support**: Parses all major JSDoc tags including `@param`, `@returns`, `@typedef`, `@property`, `@example`, and `@throws`
+- **Multiple TypeDef Support**: Parse multiple `@typedef` definitions from single or separate comment blocks
 - **Type-Safe**: Built with Pydantic BaseModel for robust data validation and type safety
 - **Union Types**: Full support for union types like `string|number|null`
 - **Optional Parameters**: Handles optional parameters with bracket syntax `[param]`
@@ -93,12 +94,14 @@ The `parse()` function returns a `JSDocComment` object with the following struct
             "description": "Exception description"
         }
     ],
-    "typedef": {
-        "types": ["Object"],
-        "name": "CustomType",
-        "description": "Type description",
-        "properties": [...]
-    },
+    "typedefs": [
+        {
+            "types": ["Object"],
+            "name": "CustomType",
+            "description": "Type description",
+            "properties": [...]
+        }
+    ],
     "properties": [...],
     "code": "function code() { ... }",
     "raw_comment": "/** original comment */"
@@ -125,10 +128,59 @@ jsdoc = '''/**
  */'''
 
 result = parse(jsdoc, include_code=False)
-print(result.typedef.name)           # "User"
-print(result.properties[0].name)     # "name"
-print(result.properties[0].types)    # ["string"]
-print(result.properties[2].types)    # ["string", "null"]
+print(result.typedefs[0].name)           # "User"
+print(result.typedefs[0].properties[0].name)     # "name"
+print(result.typedefs[0].properties[0].types)    # ["string"]
+print(result.typedefs[0].properties[2].types)    # ["string", "null"]
+```
+
+### Multiple TypeDef Definitions
+
+Parse multiple typedef definitions from a single comment block:
+
+```python
+jsdoc = '''/**
+ * @typedef {object} User
+ * @property {string} name - User's name
+ * 
+ * @typedef {object} Role
+ * @property {string} name - Role name
+ * @property {string[]} permissions - Role permissions
+ * 
+ * @typedef {string} Status - User status
+ */'''
+
+result = parse(jsdoc, include_code=False)
+print(len(result.typedefs))          # 3
+print(result.typedefs[0].name)       # "User"
+print(result.typedefs[1].name)       # "Role"
+print(result.typedefs[2].name)       # "Status"
+```
+
+Or from separate comment blocks:
+
+```python
+jsdoc = '''/**
+ * @typedef {object} Product
+ * @property {string} id - Product identifier
+ * @property {number} price - Product price
+ */
+
+/**
+ * @typedef {object} Category
+ * @property {string} name - Category name
+ * @property {Product[]} products - Products in category
+ */
+
+function getProducts() {
+    return products;
+}'''
+
+result = parse(jsdoc)
+print(len(result.typedefs))          # 2
+print(result.typedefs[0].name)       # "Product"
+print(result.typedefs[1].name)       # "Category"
+print(result.code)                   # "function getProducts() { ... }"
 ```
 
 ### Optional Parameters
@@ -240,6 +292,18 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 5. Submit a pull request
 
 ## Changelog
+
+### v1.0.2
+- **BREAKING CHANGE**: Changed `typedef` field to `typedefs` (List[TypeDef]) in JSDocComment model
+- Added support for multiple typedef definitions in single comment block
+- Added support for parsing separate typedef comment blocks
+- Improved comment block selection logic for mixed typedef and function documentation
+- Enhanced code extraction to work correctly with multiple comment blocks
+- Added comprehensive tests for multiple typedef scenarios
+- Updated documentation with multiple typedef examples
+
+### v1.0.1
+- Bug fixes and improvements
 
 ### v1.0.0
 - Initial release
