@@ -31,7 +31,7 @@ from .models import (
     Description,
 )
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 __all__ = [
     "parse",
     "JSDocComment", 

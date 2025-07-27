@@ -10,6 +10,7 @@ A professional Python package for parsing JavaScript documentation comments (JSD
 - **Union Types**: Full support for union types like `string|number|null`
 - **Optional Parameters**: Handles optional parameters with bracket syntax `[param]`
 - **Code Extraction**: Optionally extracts JavaScript code that follows JSDoc comments
+- **Function Name Parsing**: Automatically extracts function names from various JavaScript function definitions
 - **Professional API**: Simple `parse()` function interface with detailed structured output
 
 ## Installation
@@ -45,6 +46,7 @@ print(result.params[0].types)      # ["number"]
 print(result.returns[0].types)     # ["number"]
 print(result.examples[0].code)     # "add(1, 2); // returns 3"
 print(result.code)                 # "function add(a, b) {\\n    return a + b;\\n}"
+print(result.function_name)        # "add"
 ```
 
 ## Supported JSDoc Tags
@@ -104,6 +106,7 @@ The `parse()` function returns a `JSDocComment` object with the following struct
     ],
     "properties": [...],
     "code": "function code() { ... }",
+    "function_name": "functionName",
     "raw_comment": "/** original comment */"
 }
 ```
@@ -211,6 +214,62 @@ print(result.params[0].types)    # ["string", "number", "boolean"]
 print(result.returns[0].types)   # ["User", "null"]  
 ```
 
+### Function Name Extraction
+
+The parser automatically extracts function names from various JavaScript function definition patterns:
+
+```python
+# Standard function declaration
+jsdoc = '''/**
+ * A standard function.
+ */
+function myFunction() {
+    return true;
+}'''
+result = parse(jsdoc)
+print(result.function_name)  # "myFunction"
+
+# Arrow function
+jsdoc = '''/**
+ * An arrow function.
+ */
+const arrowFunc = () => {
+    return "hello";
+}'''
+result = parse(jsdoc)
+print(result.function_name)  # "arrowFunc"
+
+# Async function
+jsdoc = '''/**
+ * An async function.
+ */
+async function fetchData() {
+    return await api.getData();
+}'''
+result = parse(jsdoc)
+print(result.function_name)  # "fetchData"
+
+# Class method
+jsdoc = '''/**
+ * A class method.
+ */
+methodName() {
+    return this.value;
+}'''
+result = parse(jsdoc)
+print(result.function_name)  # "methodName"
+```
+
+Supported function definition patterns:
+- `function name() {}` - Standard function declarations
+- `async function name() {}` - Async function declarations  
+- `export function name() {}` - Exported functions
+- `const name = () => {}` - Arrow functions
+- `const name = function() {}` - Function expressions
+- `name: function() {}` - Object methods
+- `name() {}` - Object method shorthand
+- `static name() {}` - Static class methods
+
 ## API Reference
 
 ### `parse(jsdoc_string: str, include_code: bool = True) -> JSDocComment`
@@ -292,6 +351,19 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 5. Submit a pull request
 
 ## Changelog
+
+### v1.0.3
+- **NEW FEATURE**: Added `function_name` field to automatically extract function names from JavaScript code
+- Support for robust function name extraction from various JS function definition patterns:
+  - Standard function declarations (`function name() {}`)
+  - Arrow functions (`const name = () => {}`)
+  - Async functions (`async function name() {}`)
+  - Exported functions (`export function name() {}`)
+  - Function expressions (`const name = function() {}`)
+  - Object methods (`name: function() {}`, `name() {}`)
+  - Static class methods (`static name() {}`)
+- Added comprehensive tests for function name extraction (23 tests total)
+- Updated documentation with function name extraction examples
 
 ### v1.0.2
 - **BREAKING CHANGE**: Changed `typedef` field to `typedefs` (List[TypeDef]) in JSDocComment model

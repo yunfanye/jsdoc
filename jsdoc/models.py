@@ -122,6 +122,7 @@ class JSDocComment(BaseModel):
         examples: List of @example tags
         throws: List of @throws tags
         code: Any associated code that follows the JSDoc comment
+        function_name: Extracted function name from the associated code
         raw_comment: The original unparsed comment string
     """
     description: Optional[Description] = Field(default=None, description="Main description")
@@ -132,6 +133,7 @@ class JSDocComment(BaseModel):
     examples: List[Example] = Field(default_factory=list, description="Usage examples")
     throws: List[Throws] = Field(default_factory=list, description="Possible exceptions")
     code: Optional[str] = Field(default=None, description="Associated code following the comment")
+    function_name: Optional[str] = Field(default=None, description="Extracted function name from the code")
     raw_comment: str = Field(description="Original comment string")
     
     model_config = ConfigDict(

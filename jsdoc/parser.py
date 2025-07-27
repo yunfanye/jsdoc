@@ -323,6 +323,73 @@ class JSDocParser:
             ))
             
         return throws
+    
+    @staticmethod
+    def _extract_function_name(code: str) -> Optional[str]:
+        """
+        Extract function name from JavaScript code.
+        
+        Supports various function definition patterns:
+        - function functionName() {}
+        - async function functionName() {}
+        - export function functionName() {}
+        - export async function functionName() {}
+        - const functionName = function() {}
+        - const functionName = async function() {}
+        - const functionName = () => {}
+        - const functionName = async () => {}
+        - functionName: function() {}
+        - functionName: async function() {}
+        - functionName() {}  (method definition)
+        - async functionName() {}  (async method)
+        
+        Args:
+            code: JavaScript code string
+            
+        Returns:
+            Function name if found, None otherwise
+        """
+        if not code or not code.strip():
+            return None
+            
+        # Clean the code - remove extra whitespace and get first meaningful line
+        lines = [line.strip() for line in code.strip().split('\n') if line.strip()]
+        if not lines:
+            return None
+            
+        # Try different function definition patterns (ordered by specificity)
+        patterns = [
+            # Object method with function keyword: name: function() {}, name: async function() {}
+            r'([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:\s*(?:async\s+)?function\s*\(',
+            
+            # Arrow functions: const name = () => {}, const name = async () => {}, const name = x => ...
+            r'(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>\s*',
+            
+            # Function expressions: const name = function() {}, const name = async function() {}
+            r'(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s+)?function\s*\(',
+            
+            # Standard function declarations: function name() {}, async function name() {}
+            r'(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(',
+            
+            # Static class methods: static methodName() {}, static async methodName() {}
+            r'static\s+(?:async\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*\{',
+            
+            # Object method shorthand and class methods: name() {}, async name() {}
+            r'(?:async\s+)?([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*\{',
+        ]
+        
+        # Try to match against the first few lines of code
+        search_text = ' '.join(lines[:3])  # Look at first 3 lines
+        
+        for pattern in patterns:
+            match = re.search(pattern, search_text, re.IGNORECASE)
+            if match:
+                function_name = match.group(1)
+                # Validate it's a reasonable function name
+                if function_name and len(function_name) <= 100:  # Reasonable length limit
+                    return function_name
+        
+        return None
 
 
 def parse(jsdoc_string: str, include_code: bool = True) -> JSDocComment:
@@ -452,6 +519,11 @@ def parse(jsdoc_string: str, include_code: bool = True) -> JSDocComment:
         # Single content without /** */ wrapper
         typedefs = JSDocParser._parse_typedefs(cleaned_content)
     
+    # Extract function name from code if available
+    function_name = None
+    if code:
+        function_name = JSDocParser._extract_function_name(code)
+    
     return JSDocComment(
         description=description,
         params=params,
@@ -461,5 +533,6 @@ def parse(jsdoc_string: str, include_code: bool = True) -> JSDocComment:
         examples=examples,
         throws=throws,
         code=code,
+        function_name=function_name,
         raw_comment=jsdoc_string
     )

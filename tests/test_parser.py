@@ -688,6 +688,9 @@ def test_multiple_typedefs_separate_blocks():
     assert "function getStore()" in result.code
     assert "return storeData;" in result.code
     
+    # Test function name extraction
+    assert result.function_name == "getStore"
+    
     # Test that main comment block (first one) doesn't have other JSDoc elements
     assert result.description is None
     assert len(result.params) == 0
@@ -767,3 +770,267 @@ def test_mixed_typedef_and_function_documentation():
     assert "async function initializeApp" in result.code
     assert "validateConfig(config)" in result.code
     assert "await setupDatabase(config)" in result.code
+    
+    # Test function name extraction
+    assert result.function_name == "initializeApp"
+
+
+def test_function_name_extraction():
+    """Test function name extraction from various JavaScript function definitions."""
+    
+    # Test 1: Standard function declaration
+    jsdoc1 = """/**
+     * Test function.
+     */
+    function testFunction() {
+        return true;
+    }"""
+    result1 = parse(jsdoc1)
+    assert result1.function_name == "testFunction"
+    
+    # Test 2: Async function declaration
+    jsdoc2 = """/**
+     * Async test function.
+     */
+    async function asyncTestFunction() {
+        return await something();
+    }"""
+    result2 = parse(jsdoc2)
+    assert result2.function_name == "asyncTestFunction"
+    
+    # Test 3: Export function declaration
+    jsdoc3 = """/**
+     * Exported function.
+     */
+    export function exportedFunction() {
+        return data;
+    }"""
+    result3 = parse(jsdoc3)
+    assert result3.function_name == "exportedFunction"
+    
+    # Test 4: Export async function declaration
+    jsdoc4 = """/**
+     * Exported async function.
+     */
+    export async function exportedAsyncFunction() {
+        return await data;
+    }"""
+    result4 = parse(jsdoc4)
+    assert result4.function_name == "exportedAsyncFunction"
+    
+    # Test 5: Const arrow function
+    jsdoc5 = """/**
+     * Arrow function.
+     */
+    const arrowFunction = () => {
+        return 42;
+    }"""
+    result5 = parse(jsdoc5)
+    assert result5.function_name == "arrowFunction"
+    
+    # Test 6: Const async arrow function
+    jsdoc6 = """/**
+     * Async arrow function.
+     */
+    const asyncArrowFunction = async () => {
+        return await getValue();
+    }"""
+    result6 = parse(jsdoc6)
+    assert result6.function_name == "asyncArrowFunction"
+    
+    # Test 7: Const function expression
+    jsdoc7 = """/**
+     * Function expression.
+     */
+    const functionExpression = function() {
+        return "hello";
+    }"""
+    result7 = parse(jsdoc7)
+    assert result7.function_name == "functionExpression"
+    
+    # Test 8: Const async function expression
+    jsdoc8 = """/**
+     * Async function expression.
+     */
+    const asyncFunctionExpression = async function() {
+        return await "hello";
+    }"""
+    result8 = parse(jsdoc8)
+    assert result8.function_name == "asyncFunctionExpression"
+    
+    # Test 9: Object method shorthand
+    jsdoc9 = """/**
+     * Object method.
+     */
+    methodName() {
+        return this.value;
+    }"""
+    result9 = parse(jsdoc9)
+    assert result9.function_name == "methodName"
+    
+    # Test 10: Async object method shorthand
+    jsdoc10 = """/**
+     * Async object method.
+     */
+    async asyncMethodName() {
+        return await this.value;
+    }"""
+    result10 = parse(jsdoc10)
+    assert result10.function_name == "asyncMethodName"
+    
+    # Test 11: Object method with function keyword
+    jsdoc11 = """/**
+     * Object method with function keyword.
+     */
+    methodWithFunction: function() {
+        return this.data;
+    }"""
+    result11 = parse(jsdoc11)
+    assert result11.function_name == "methodWithFunction"
+    
+    # Test 12: Object method with async function keyword
+    jsdoc12 = """/**
+     * Async object method with function keyword.
+     */
+    asyncMethodWithFunction: async function() {
+        return await this.data;
+    }"""
+    result12 = parse(jsdoc12)
+    assert result12.function_name == "asyncMethodWithFunction"
+    
+    # Test 13: Class method
+    jsdoc13 = """/**
+     * Class method.
+     */
+    classMethod() {
+        return this.property;
+    }"""
+    result13 = parse(jsdoc13)
+    assert result13.function_name == "classMethod"
+    
+    # Test 14: Static class method
+    jsdoc14 = """/**
+     * Static class method.
+     */
+    static staticMethod() {
+        return SomeClass.value;
+    }"""
+    result14 = parse(jsdoc14)
+    assert result14.function_name == "staticMethod"
+    
+    # Test 15: Let variable arrow function
+    jsdoc15 = """/**
+     * Let arrow function.
+     */
+    let letArrowFunction = (param) => {
+        return param * 2;
+    }"""
+    result15 = parse(jsdoc15)
+    assert result15.function_name == "letArrowFunction"
+    
+    # Test 16: Var variable function expression
+    jsdoc16 = """/**
+     * Var function expression.
+     */
+    var varFunctionExpression = function(a, b) {
+        return a + b;
+    }"""
+    result16 = parse(jsdoc16)
+    assert result16.function_name == "varFunctionExpression"
+
+
+def test_function_name_extraction_edge_cases():
+    """Test edge cases for function name extraction."""
+    
+    # Test 1: No code following JSDoc
+    jsdoc1 = """/**
+     * Just a comment.
+     */"""
+    result1 = parse(jsdoc1, include_code=False)
+    assert result1.function_name is None
+    
+    # Test 2: Code without function
+    jsdoc2 = """/**
+     * Variable declaration.
+     */
+    const someVariable = "value";"""
+    result2 = parse(jsdoc2)
+    assert result2.function_name is None
+    
+    # Test 3: Multi-line function definition
+    jsdoc3 = """/**
+     * Multi-line function.
+     */
+    function multiLineFunction(
+        param1,
+        param2,
+        param3
+    ) {
+        return param1 + param2 + param3;
+    }"""
+    result3 = parse(jsdoc3)
+    assert result3.function_name == "multiLineFunction"
+    
+    # Test 4: Function with complex parameters
+    jsdoc4 = """/**
+     * Function with complex parameters.
+     */
+    function complexParams({ name, age = 25 }, ...rest) {
+        return { name, age, rest };
+    }"""
+    result4 = parse(jsdoc4)
+    assert result4.function_name == "complexParams"
+    
+    # Test 5: Arrow function with parameters
+    jsdoc5 = """/**
+     * Arrow function with parameters.
+     */
+    const arrowWithParams = (a, b, c) => {
+        return a + b + c;
+    }"""
+    result5 = parse(jsdoc5)
+    assert result5.function_name == "arrowWithParams"
+    
+    # Test 6: Single-line arrow function
+    jsdoc6 = """/**
+     * Single-line arrow function.
+     */
+    const singleLineArrow = x => x * 2;"""
+    result6 = parse(jsdoc6)
+    assert result6.function_name == "singleLineArrow"
+
+
+def test_function_name_with_existing_tests():
+    """Test that function names are extracted in existing test cases."""
+    
+    # Test basic function comment (existing test)
+    jsdoc = """/**
+     * Adds two numbers together.
+     * @param {number} a - The first number
+     * @param {number} b - The second number
+     * @returns {number} The sum of a and b
+     */
+    function add(a, b) {
+        return a + b;
+    }"""
+    
+    result = parse(jsdoc)
+    assert result.function_name == "add"
+    assert result.code.strip().startswith("function add(a, b)")
+    
+    # Test description only format (existing test)  
+    jsdoc2 = """/**
+     * Calculates the total price including tax.
+     *
+     * This utility function takes a base price and applies the appropriate
+     * tax rate based on the customer's location and product category.
+     * The calculation includes handling for tax-exempt items and special
+     * promotional discounts that may be applied.
+     */
+    function calculateTotalPrice(basePrice, taxRate, location) {
+        return basePrice * (1 + taxRate);
+    }"""
+    
+    result2 = parse(jsdoc2)
+    assert result2.function_name == "calculateTotalPrice"
+    assert "function calculateTotalPrice" in result2.code
